@@ -31,7 +31,22 @@ class ReservationError(SoftwareFJError):
     """Raised for errors in the reservation workflow."""
     pass
 
+# ==========================================
+# GENERAL ABSTRACT CLASS (BASE ENTITY)
+# ==========================================
+class AbstractEntity(ABC):
+    """Abstract class representing general entities in the system."""
+    
+    def __init__(self, identifier: str):
+        self._identifier = identifier
 
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    @abstractmethod
+    def get_summary(self) -> str:
+        pass
 
 
 
