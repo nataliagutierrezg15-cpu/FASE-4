@@ -9,6 +9,23 @@ logging.basicConfig(
     encoding='utf-8'
 )
 
+class SoftwareFJError(Exception):
+    """Base exception for all errors in the Software FJ system."""
+    pass
+
+class InvalidClientError(SoftwareFJError):
+    """Raised for errors in client creation or validation."""
+    pass
+
+class ServiceError(SoftwareFJError):
+    """Raised for errors related to service management."""
+    pass
+
+class ReservationError(SoftwareFJError):
+    """Raised for errors in the reservation workflow."""
+    pass
+
+
 class AbstractEntity(ABC):
     """Abstract class representing general entities in the system."""
     
