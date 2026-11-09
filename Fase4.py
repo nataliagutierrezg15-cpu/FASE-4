@@ -123,9 +123,9 @@ class Service(AbstractEntity, ABC):
         return f"Service: {self.service_name} (Base: ${self.base_cost:,.2f})"
 
 
-#========================================
+# ========================================
 # ROOM RESERVATION SERVICE
-#========================================
+# ========================================
 
 class RoomReservation(Service):
     """Specialized service for room reservations."""
@@ -146,9 +146,9 @@ class RoomReservation(Service):
     def describe_service(self) -> str:
         return f"Room reservation for {self.hours} hour(s)."
 
-#=========================================
-#EQUIPMENT RENTAL SERVICE
-#=========================================
+# =========================================
+# EQUIPMENT RENTAL SERVICE
+# =========================================
 
 class EquipmentRental(Service):
     """Specialized service for equipment rental.""""
@@ -168,11 +168,11 @@ class EquipmentRental(Service):
         return total
 
     def describe_service(self) -> str:
-        return f"Equipment rental for {self.days} day(S)."
+        return f"Equipment rental for {self.days} day(s)."
 
-#======================================
-#CONSULTING SERVICE
-#======================================
+# ======================================
+# CONSULTING SERVICE
+# ======================================
 
 class ConsultingService(Service):
     """Speacilized consulting service."""
@@ -193,9 +193,9 @@ class ConsultingService(Service):
     def describe_service(self) -> str:
         return f"Specialized consulting for {self.hours} hour(s)."
 
-#======================================
-#RESERVATION CLASS
-#======================================
+# ======================================
+# RESERVATION CLASS
+# ======================================
 
 class Reservation:
     """Represents a service reservation."""
@@ -227,7 +227,7 @@ class Reservation:
             self.confirm()
             return total_cost
 
-        except Exceotion as error:
+        except Exception as error:
             logging.error(str(error))
             raise ReservationError("Error processing reservation.")
                 from error
