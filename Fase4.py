@@ -123,5 +123,126 @@ class Service(AbstractEntity, ABC):
         return f"Service: {self.service_name} (Base: ${self.base_cost:,.2f})"
 
 
+#========================================
+# ROOM RESERVATION SERVICE
+#========================================
+
+class RoomReservation(Service):
+    """Specialized service for room reservations."""
+
+    def __init__(self,identifitier: str, service_name: str, base_cost: float, hours: int):
+        super().__init__(identifier, service_name, base_cost)
+        self.hours = hours
+
+    def calculate_cost(self, tax_rate: float = 0, discount: float = 0) -> float:
+        """Calculates the total service cost."""
+
+        total = self.base_cost * self.hours
+        total += total * tax_rate
+        total -= discount
+
+        return total
+
+    def describe_service(self) -> str:
+        return f"Room reservation for {self.hours} hour(s)."
+
+#=========================================
+#EQUIPMENT RENTAL SERVICE
+#=========================================
+
+class EquipmentRental(Service):
+    """Specialized service for equipment rental.""""
+
+    def __init__(self, identifier: str, service_name: str, base_cost: float, days: int):
+        super.__init__(identifier, service_name, base_cost)
+
+        self.days = days
+
+    def calculate_cost(self, tax_rate: float = 0, discount: float = 0) -> float:
+        """Calculates the total service cost:"""
+
+        total = self.base_cost * self.days
+        total += total * tax_rate
+        total -= discount
+
+        return total
+
+    def describe_service(self) -> str:
+        return f"Equipment rental for {self.days} day(S)."
+
+#======================================
+#CONSULTING SERVICE
+#======================================
+
+class ConsultingService(Service):
+    """Speacilized consulting service."""
+
+    def __init__(self, identifier: str, service_name: str, base_cost: float, hours: init):
+        super.__init__(identifier, service_name, base_cost)
+
+        self.hours = hours
+
+    def calculate_cost(self, tax_rate: float = 0, discount: float = 0) -> float:
+        """Calculates the total service cost."""
+
+        total = self.base_cost * self.hours
+        total += total * tax_rate
+        total -= discount
+
+        return total
+    def describe_service(self) -> str:
+        return f"Specialized consulting for {self.hours} hour(s)."
+
+#======================================
+#RESERVATION CLASS
+#======================================
+
+class Reservation:
+    """Represents a service reservation."""
+
+    def __init__(self, client, service, duration: int):
+        if duration <= 0:
+            raise ReservationError("Duration must be greater than zero.")
+
+        self.client = client
+        self.service = service
+        self.duration = duration
+        self.status = "Pending"
+
+    def confirm(self):
+        self.status = "Confirmed"
+
+        logging.info(f"Reservation confirmed for "
+                     f"{self.client.name} ")
+
+    def cancel(self):
+        self.status = "Cancelled"
+
+        logging.info(f"Reservation cancelled for "
+                     f"{self.client.name} ")
+
+    def process(self):
+        try: 
+            total_cost = self.service.calculate_cost()
+            self.confirm()
+            return total_cost
+
+        except Exceotion as error:
+            logging.error(str(error))
+            raise ReservationError("Error processing reservation.")
+                from error
+
+    def get_summary(self) -> str:
+
+        return (f"Reservation | "
+                f"Client: {self.client.name} | "
+                f"Service: {self.service.service_name} | "
+                f"Status: {self.status}" )
+        
+        
+        
+
+
+
 
 
