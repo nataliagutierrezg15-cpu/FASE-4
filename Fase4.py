@@ -291,51 +291,76 @@ class Reservation:
     """Represents a service reservation."""
 
     def __init__(self, client, service, duration: int):
+        if not isinstance(duration, int) or isinstance(duration, bool):
+            raise ReservationError("Duration must be an integer.")
         if duration <= 0:
             raise ReservationError("Duration must be greater than zero.")
 
         self.client = client
         self.service = service
         self.duration = duration
-        self.status = "Pending"
+        self.status = "Pending"                          # Toda reserva empieza pendiente
+        self.created_at = datetime.datetime.now()        # Fecha y hora en que se creó
 
     def confirm(self):
+        # Operación no permitida: no se confirma algo cancelado o ya confirmado
+        if self.status != "Pending":
+            raise ReservationError(
+                f"Cannot confirm a reservation with status '{self.status}'."
+            )
         self.status = "Confirmed"
 
         logging.info(f"Reservation confirmed for "
                      f"{self.client.name} ")
 
     def cancel(self):
+        # Operación no permitida: no se cancela dos veces
+        if self.status == "Cancelled":
+            raise ReservationError("The reservation is already cancelled.")
         self.status = "Cancelled"
 
         logging.info(f"Reservation cancelled for "
                      f"{self.client.name} ")
 
-    
-    def process(self):
+    def process(self, tax_rate: float = 0, discount: float = 0):
         try:
-            total_cost = self.service.calculate_cost()
+            # Solo se procesa una reserva pendiente y con el servicio disponible
+            if self.status != "Pending":
+                raise ReservationError(
+                    f"Only pending reservations can be processed (current: '{self.status}')."
+                )
+            if not self.service.available:
+                raise ServiceError(f"Service '{self.service.service_name}' is not available.")
+
+            # Se cobra la duración de la reserva (parámetro opcional 'units')
+            total_cost = self.service.calculate_cost(
+                tax_rate=tax_rate, discount=discount, units=self.duration
+            )
 
         except Exception as error:
-            logging.error(str(error))
+            logging.error(f"Reservation processing failed: {error}")
+            # Encadenamiento: el error original queda guardado en __cause__
             raise ReservationError(
                 "Error processing reservation."
             ) from error
 
         else:
+            # Solo se ejecuta si el try no tuvo errores
             self.confirm()
             logging.info("Reservation processed successfully.")
             return total_cost
 
         finally:
+            # Se ejecuta SIEMPRE, haya error o no
             logging.info("Reservation processing attempt finished.")
+
     def get_summary(self) -> str:
 
         return (f"Reservation | "
                 f"Client: {self.client.name} | "
                 f"Service: {self.service.service_name} | "
+                f"Duration: {self.duration} | "
                 f"Status: {self.status}" )
-
       
 # ==========================================
 # SOFTWARE FJ SYSTEM - SYSTEM MANAGEMENT
@@ -386,6 +411,10 @@ class SoftwareFJSystem:
         if service is None:
             raise ReservationError("Service not found.")
 
+        # No se puede reservar un servicio que no está disponible
+        if not service.available:
+            raise ServiceError(f"Service '{service.service_name}' is not available.")
+            
         reservation = Reservation(client, service, duration)
         self.reservations.append(reservation)
 
@@ -615,3 +644,174 @@ try:
 except ServiceError as e:
     print("Error handled:", e)
     logging.error(f"Non-integer room hours: {e}")  # Registra el error en el archivo de logs
+
+# ==========================================
+# INVALID CLIENT DATA TESTS
+# ==========================================
+# Cada prueba intenta crear un cliente con un dato malo.
+# El setter de Client lanza InvalidClientError y el sistema sigue funcionando.
+print("\nINVALID CLIENT EMAIL TEST")
+
+try:
+    bad_client = Client("C002", "Laura Gomez", "laura.gmail.com", "3001112233")  # Falta la @
+except InvalidClientError as e:
+    print("Error handled:", e)
+    logging.error(f"Invalid client email: {e}")
+
+
+print("\nINVALID CLIENT NAME TEST")
+
+try:
+    bad_client = Client("C003", "Al", "al@gmail.com", "3001112233")  # Nombre muy corto
+except InvalidClientError as e:
+    print("Error handled:", e)
+    logging.error(f"Invalid client name: {e}")
+
+
+print("\nINVALID CLIENT PHONE TEST")
+
+try:
+    bad_client = Client("C004", "Pedro Diaz", "pedro@gmail.com", "300ABC123")  # Tiene letras
+except InvalidClientError as e:
+    print("Error handled:", e)
+    logging.error(f"Invalid client phone: {e}")
+
+
+# ==========================================
+# VALID EQUIPMENT AND CONSULTING SERVICES TEST
+# ==========================================
+# try / except / else: el else solo se ejecuta si NO hubo error
+print("\nVALID EQUIPMENT AND CONSULTING SERVICES TEST")
+
+try:
+    service2 = EquipmentRental("S006", "Projector Rental", 30000, 3)
+    service3 = ConsultingService("S007", "Software Consulting", 80000, 2)
+    system.register_service(service2)
+    system.register_service(service3)
+except ServiceError as e:
+    print("Error handled:", e)
+    logging.error(f"Valid services registration failed: {e}")
+else:
+    print(service2.describe_service())
+    print(service3.describe_service())
+    print(system.list_services())
+
+
+# ==========================================
+# INVALID EQUIPMENT DAYS TEST
+# ==========================================
+print("\nINVALID EQUIPMENT DAYS TEST")
+
+try:
+    bad_equipment = EquipmentRental("S008", "Laptop Rental", 40000, -3)  # Días negativos
+except ServiceError as e:
+    print("Error handled:", e)
+    logging.error(f"Negative equipment days: {e}")
+
+
+# ==========================================
+# INVALID CONSULTING HOURS TESTS
+# ==========================================
+print("\nNON-INTEGER CONSULTING HOURS TEST")
+
+try:
+    bad_consulting = ConsultingService("S009", "Data Consulting", 80000, "abc")  # No es número
+except ServiceError as e:
+    print("Error handled:", e)
+    logging.error(f"Non-integer consulting hours: {e}")
+
+
+print("\nCONSULTING HOURS LIMIT TEST")
+
+try:
+    bad_consulting = ConsultingService("S010", "Data Consulting", 80000, 9)  # Máximo son 8
+except ServiceError as e:
+    print("Error handled:", e)
+    logging.error(f"Consulting hours over the limit: {e}")
+
+
+# ==========================================
+# SUCCESSFUL RESERVATION WITH TAX AND DISCOUNT TEST
+# ==========================================
+# Usa los parámetros opcionales de calculate_cost (variante con impuesto y descuento)
+print("\nSUCCESSFUL RESERVATION WITH TAX AND DISCOUNT TEST")
+
+try:
+    reservation2 = system.create_reservation("C001", "S006", 3)
+    total2 = reservation2.process(tax_rate=0.19, discount=10000)
+except SoftwareFJError as e:
+    print("Error handled:", e)
+    logging.error(f"Equipment reservation failed: {e}")
+else:
+    print(reservation2.get_summary())
+    print(f"Total cost (19% tax, $10,000 discount): ${total2:,.2f}")
+
+
+# ==========================================
+# SERVICE NOT AVAILABLE TEST
+# ==========================================
+print("\nSERVICE NOT AVAILABLE TEST")
+
+service3.disable()  # La asesoría deja de estar disponible
+
+try:
+    system.create_reservation("C001", "S007", 2)
+except ServiceError as e:
+    print("Error handled:", e)
+    logging.error(f"Reservation of unavailable service: {e}")
+finally:
+    service3.enable()  # finally: se vuelve a activar pase lo que pase
+
+
+# ==========================================
+# INVALID RESERVATION DURATION TEST
+# ==========================================
+print("\nINVALID RESERVATION DURATION TEST")
+
+try:
+    system.create_reservation("C001", "S001", 0)  # Duración cero
+except ReservationError as e:
+    print("Error handled:", e)
+    logging.error(f"Invalid reservation duration: {e}")
+
+
+# ==========================================
+# INCONSISTENT COST TEST (EXCEPTION CHAINING)
+# ==========================================
+# El descuento es mayor que el total: calculate_cost lanza ServiceError,
+# y process() lo encadena dentro de un ReservationError (raise ... from ...)
+print("\nINCONSISTENT COST TEST (EXCEPTION CHAINING)")
+
+try:
+    reservation3 = system.create_reservation("C001", "S001", 1)
+    reservation3.process(discount=999999)
+except ReservationError as e:
+    print("Error handled:", e)
+    print("Original cause:", e.__cause__)  # El error original que causó este
+    logging.error(f"Inconsistent cost: {e} | Cause: {e.__cause__}")
+
+
+# ==========================================
+# DOUBLE CANCELLATION TEST
+# ==========================================
+print("\nDOUBLE CANCELLATION TEST")
+
+try:
+    reservation1.cancel()  # reservation1 ya se había cancelado antes
+except ReservationError as e:
+    print("Error handled:", e)
+    logging.error(f"Operation not allowed: {e}")
+
+
+# ==========================================
+# FINAL SYSTEM SUMMARY
+# ==========================================
+print("\nFINAL SYSTEM SUMMARY")
+print("Clients:", system.list_clients())
+print("Services:", system.list_services())
+print("Reservations:")
+for summary in system.list_reservations():
+    print(" -", summary)
+
+print("\nThe system finished all simulations without stopping.")
+logging.info("All simulations finished. The system remained stable.")
