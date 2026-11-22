@@ -10,7 +10,8 @@ logging.basicConfig(
     filename='system_software_fj.log',
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
-    encoding='utf-8')
+    encoding='utf-8',
+    force=True)  # Obliga a usar esta configuración aunque Jupyter/Colab ya tenga una
 
 # ==========================================
 # CUSTOM EXCEPTIONS & EXCEPTION CHAINING
@@ -480,7 +481,7 @@ try:
     system.create_reservation("C999", "S001", 2)
 except ReservationError as e:
     print("Error handled:", e)
-
+    logging.error(f"Reservation with unknown client: {e}")  # Registra el error en el archivo de logs
 
 # ==========================================
 # DUPLICATE CLIENT TEST
@@ -492,6 +493,7 @@ try:
     system.register_client(client1)
 except InvalidClientError as e:
     print("Error handled:", e)
+    logging.error(f"Duplicate client registration: {e}") # Registra el error en el archivo de logs
 
 
 # ==========================================
@@ -508,6 +510,7 @@ try:
     )
 except ServiceError as e:
     print("Error handled:", e)
+    logging.error(f"Negative service cost: {e}")  # Registra el error en el archivo de logs
 
 # ==========================================
 # NON-NUMERIC SERVICE COST TEST
@@ -523,6 +526,7 @@ try:
     )
 except ServiceError as e:
     print("Error handled:", e)
+    logging.error(f"Non-numeric service cost: {e}")  # Registra el error en el archivo de logs
 
 
     # ==========================================
@@ -539,6 +543,7 @@ try:
     )
 except ServiceError as e:
     print("Error handled:", e)
+    logging.error(f"Negative room hours: {e}")  # Registra el error en el archivo de logs
 
 # ==========================================
 # NON-INTEGER ROOM HOURS TEST
@@ -554,3 +559,4 @@ try:
     )
 except ServiceError as e:
     print("Error handled:", e)
+    logging.error(f"Non-integer room hours: {e}")  # Registra el error en el archivo de logs
