@@ -125,6 +125,7 @@ class Service(AbstractEntity, ABC):
         super().__init__(identifier)
         self.service_name = service_name
         self.base_cost = base_cost
+        self.available = True # Todo servicio nace disponible, se puede desactivar con disable()
 
     @property
     def base_cost(self) -> float:
@@ -142,6 +143,49 @@ class Service(AbstractEntity, ABC):
 
         self.__base_cost = float(value)
 
+    def disable(self):
+        """Marks the service as not available (it cannot be reserved)."""
+        self.available = False
+        logging.info(f"Service disabled: {self.service_name}")
+
+    def enable(self):
+        """Marks the service as available again."""
+        self.available = True
+        logging.info(f"Service enabled: {self.service_name}")
+
+    @staticmethod
+    def _validate_units(value, unit_name: str, maximum: int):
+        """Validates that hours/days are an integer between 1 and the allowed maximum."""
+        # isinstance revisa el tipo; bool se excluye porque en Python True/False cuentan como int
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ServiceError(f"The number of {unit_name} must be an integer.")
+        if value <= 0:
+            raise ServiceError(f"The number of {unit_name} must be greater than zero.")
+        if value > maximum:
+            raise ServiceError(f"The number of {unit_name} cannot exceed {maximum}.")
+
+    def _apply_tax_and_discount(self, subtotal: float, tax_rate: float, discount: float) -> float:
+        """Applies tax and discount, checking that the result is consistent."""
+        if not isinstance(tax_rate, (int, float)) or not 0 <= tax_rate <= 1:
+            raise ServiceError("Tax rate must be a number between 0 and 1.")
+        if not isinstance(discount, (int, float)) or discount < 0:
+            raise ServiceError("Discount must be a non-negative number.")
+
+        total = subtotal + subtotal * tax_rate  # Suma el impuesto (ej: 0.19 = 19%)
+        total -= discount                       # Resta el descuento en pesos
+
+        if total < 0:
+            # Un costo negativo no tiene sentido: es un cálculo inconsistente
+            raise ServiceError(
+                f"Inconsistent cost: discount (${discount:,.2f}) is greater than the total."
+            )
+        return total
+
+    @abstractmethod
+    def validate_parameters(self):
+        """Each service validates its own parameters (polymorphism)."""
+        pass
+    
     @abstractmethod
     def calculate_cost(self, *args, **kwargs) -> float:
         """Polymorphic method to calculate cost."""
@@ -152,7 +196,8 @@ class Service(AbstractEntity, ABC):
         pass
 
     def get_summary(self) -> str:
-        return f"Service: {self.service_name} (Base: ${self.base_cost:,.2f})"
+        status = "Available" if self.available else "Not available"
+        return f"Service: {self.service_name} (Base: ${self.base_cost:,.2f}) - {status}"
 
 
 # ========================================
@@ -162,24 +207,22 @@ class Service(AbstractEntity, ABC):
 class RoomReservation(Service):
     """Specialized service for room reservations."""
 
+    MAX_HOURS = 24  # Una sala se puede reservar máximo 24 horas
+
     def __init__(self, identifier: str, service_name: str, base_cost: float, hours: int):
         super().__init__(identifier, service_name, base_cost)
-
-        if not isinstance(hours, int) or isinstance(hours, bool):
-            raise ServiceError("The number of hours must be an integer.")
-
-        if hours <= 0:
-            raise ServiceError("The number of hours must be greater than zero.")
-
         self.hours = hours
-    def calculate_cost(self, tax_rate: float = 0, discount: float = 0) -> float:
-        """Calculates the total service cost."""
+        self.validate_parameters()  # Si las horas no son válidas, lanza ServiceError
 
-        total = self.base_cost * self.hours
-        total += total * tax_rate
-        total -= discount
+    def validate_parameters(self):
+        self._validate_units(self.hours, "hours", self.MAX_HOURS)
 
-        return total
+    def calculate_cost(self, tax_rate: float = 0, discount: float = 0, units: int = None) -> float:
+        """Calculates the cost. Optional 'units' allows charging a different number of hours (overloading)."""
+        hours = self.hours if units is None else units
+        self._validate_units(hours, "hours", self.MAX_HOURS)
+        subtotal = self.base_cost * hours
+        return self._apply_tax_and_discount(subtotal, tax_rate, discount)
 
     def describe_service(self) -> str:
         return f"Room reservation for {self.hours} hour(s)."
@@ -191,22 +234,27 @@ class RoomReservation(Service):
 class EquipmentRental(Service):
     """Specialized service for equipment rental."""
 
+    MAX_DAYS = 30           # Un equipo se alquila máximo 30 días
+    INSURANCE_RATE = 0.05   # Seguro obligatorio del 5% sobre el alquiler
+
     def __init__(self, identifier: str, service_name: str, base_cost: float, days: int):
-       super().__init__(identifier, service_name, base_cost)
+        super().__init__(identifier, service_name, base_cost)
+        self.days = days
+        self.validate_parameters()  # Si los días no son válidos, lanza ServiceError
 
-       self.days = days
+    def validate_parameters(self):
+        self._validate_units(self.days, "days", self.MAX_DAYS)
 
-    def calculate_cost(self, tax_rate: float = 0, discount: float = 0) -> float:
-        """Calculates the total service cost:"""
-
-        total = self.base_cost * self.days
-        total += total * tax_rate
-        total -= discount
-
-        return total
+    def calculate_cost(self, tax_rate: float = 0, discount: float = 0, units: int = None) -> float:
+        """Calculates the rental cost including equipment insurance."""
+        days = self.days if units is None else units
+        self._validate_units(days, "days", self.MAX_DAYS)
+        subtotal = self.base_cost * days
+        subtotal += subtotal * self.INSURANCE_RATE  # Lo propio de este servicio: el seguro
+        return self._apply_tax_and_discount(subtotal, tax_rate, discount)
 
     def describe_service(self) -> str:
-        return f"Equipment rental for {self.days} day(s)."
+        return f"Equipment rental for {self.days} day(s), includes 5% insurance."
 
 # ======================================
 # CONSULTING SERVICE
@@ -214,19 +262,26 @@ class EquipmentRental(Service):
 class ConsultingService(Service):
     """Specialized consulting service."""
 
+    MAX_HOURS = 8                 # Una asesoría dura máximo 8 horas
+    SPECIALIST_FEE = 20000        # Tarifa fija del especialista por sesión
+
     def __init__(self, identifier: str, service_name: str, base_cost: float, hours: int):
         super().__init__(identifier, service_name, base_cost)
         self.hours = hours
+        self.validate_parameters()  # Si las horas no son válidas, lanza ServiceError
 
-    def calculate_cost(self, tax_rate: float = 0, discount: float = 0) -> float:
-        """Calculates the total service cost."""
-        total = self.base_cost * self.hours
-        total += total * tax_rate
-        total -= discount
-        return total
+    def validate_parameters(self):
+        self._validate_units(self.hours, "hours", self.MAX_HOURS)
+
+    def calculate_cost(self, tax_rate: float = 0, discount: float = 0, units: int = None) -> float:
+        """Calculates the consulting cost plus the fixed specialist fee."""
+        hours = self.hours if units is None else units
+        self._validate_units(hours, "hours", self.MAX_HOURS)
+        subtotal = self.base_cost * hours + self.SPECIALIST_FEE  # Lo propio: tarifa fija
+        return self._apply_tax_and_discount(subtotal, tax_rate, discount)
 
     def describe_service(self) -> str:
-        return f"Specialized consulting for {self.hours} hour(s)."
+        return f"Specialized consulting for {self.hours} hour(s) (+ specialist fee)."
 
 # ======================================
 # RESERVATION CLASS
